@@ -12,7 +12,7 @@ services:
     restart: always
 
   app:
-    image: ghcr.io/USERNAME_GITHUB_KAMU/wartiket:latest
+    image: ghcr.io/DhafaAryanda/tiket-konser-be:latest
     expose:
       - "3000"
     env_file:
@@ -27,7 +27,7 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: wartiket
+      POSTGRES_DB: tiket-konser
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
