@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+
+  orders Order[]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  title       String
+  description String
+  venue       String
+  eventDate   DateTime
+  saleOpenAt  DateTime // ← kapan war tiket dimulai
+  status      EventStatus @default(DRAFT)
+  createdAt   DateTime    @default(now())
+
+  ticketTypes TicketType[]
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  SALE_OPEN
+  SOLD_OUT
+  COMPLETED
+}
+
+model TicketType {
+  id         String @id @default(uuid())
+  eventId    String
+  name       String // ← "VVIP", "VIP", "Festival"
+  price      Int // ← dalam satuan Rupiah
+  quota      Int // ← total stok
+  maxPerUser Int    @default(2)
+
+  event  Event   @relation(fields: [eventId], references: [id])
+  orders Order[]
+
+  @@index([eventId])
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  userId           String
+  ticketTypeId     String
+  quantity         Int
+  totalAmount      Int
+  status           OrderStatus @default(PENDING)
+  reservationToken String?     @unique
+  expiresAt        DateTime? //  ← batas waktu bayar
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id])
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+  payment    Payment?
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+model Payment {
+  id         String        @id @default(uuid())
+  orderId    String        @unique
+  externalId String        @unique // ← ID dari Midtrans/Xendit
+  amount     Int
+  status     PaymentStatus @default(PENDING)
+  paymentUrl String?
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+}
