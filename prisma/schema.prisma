@@ -5,8 +5,8 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
 }
 
 datasource db {
@@ -15,19 +15,38 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now())
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+  name     String
+  role     Role   @default(USER)
+
+  // Email verification
+  isEmailVerified    Boolean   @default(false)
+  emailVerifyToken   String?   @unique
+  emailVerifyExpires DateTime?
+
+  // Forgot password
+  resetPasswordToken   String?   @unique
+  resetPasswordExpires DateTime?
+
+  // Refresh token
+  refreshTokenHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   orders Order[]
+
+  @@index([email])
+  @@index([emailVerifyToken])
+  @@index([resetPasswordToken])
 }
 
 enum Role {
   USER
   ADMIN
+  ORGANIZER
 }
 
 model Event {

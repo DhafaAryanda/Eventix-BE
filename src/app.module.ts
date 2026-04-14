@@ -6,6 +6,9 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { MailModule } from './mail/mail.module';
+import { EventModule } from './event/event.module';
 
 @Module({
   imports: [
@@ -41,6 +44,10 @@ import { PrismaModule } from './prisma/prisma.module';
 
     // Prisma (database)
     PrismaModule,
+
+    AuthModule,
+    MailModule,
+    EventModule,
 
     // Feature modules (tambahkan seiring perkembangan)
     // AuthModule,
