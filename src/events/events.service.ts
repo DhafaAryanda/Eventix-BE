@@ -1,0 +1,410 @@
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { EventsCache } from './events.cache';
+import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
+import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
+import { QueryEventDto } from './dto/query-event.dto';
+import { EventStatus, Role } from '@prisma/client';
+import { EventListItem } from './types/event-with-types.type';
+
+@Injectable()
+export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private cache: EventsCache,
+  ) {}
+
+  // ===========================
+  // CREATE EVENT (ADMIN / ORGANIZER)
+  // ===========================
+  async createEvent(dto: CreateEventDto, userId: string) {
+    // Validasi tanggal
+    const eventDate = new Date(dto.eventDate);
+    const saleOpenAt = new Date(dto.saleOpenAt);
+    const saleCloseAt = dto.saleCloseAt ? new Date(dto.saleCloseAt) : null;
+
+    if (eventDate <= new Date()) {
+      throw new BadRequestException('Tanggal event harus di masa depan');
+    }
+    if (saleOpenAt >= eventDate) {
+      throw new BadRequestException(
+        'Waktu buka penjualan harus sebelum tanggal event',
+      );
+    }
+    if (saleCloseAt && saleCloseAt >= eventDate) {
+      throw new BadRequestException(
+        'Waktu tutup penjualan harus sebelum tanggal event',
+      );
+    }
+
+    const event = await this.prisma.event.create({
+      data: {
+        title: dto.title,
+        description: dto.description,
+        venue: dto.venue,
+        city: dto.city,
+        eventDate,
+        saleOpenAt,
+        saleCloseAt,
+        bannerUrl: dto.bannerUrl,
+        createdBy: userId,
+        status: EventStatus.DRAFT,
+      },
+      include: {
+        ticketTypes: true,
+        creator: { select: { id: true, name: true } },
+      },
+    });
+
+    // Invalidate list cache karena ada event baru
+    await this.cache.invalidateAllEventLists();
+
+    this.logger.log(`Event created: ${event.id} by user ${userId}`);
+    return event;
+  }
+
+  // ===========================
+  // ADD TICKET TYPE KE EVENT
+  // ===========================
+  async addTicketType(
+    eventId: string,
+    dto: CreateTicketTypeDto,
+    userId: string,
+    userRole: Role,
+  ) {
+    const event = await this.findEventOrThrow(eventId);
+
+    // Organizer hanya bisa edit event miliknya sendiri
+    this.checkEventOwnership(event, userId, userRole);
+
+    if (event.status === EventStatus.SALE_OPEN) {
+      throw new BadRequestException(
+        'Tidak bisa menambah tipe tiket saat penjualan sudah dibuka',
+      );
+    }
+
+    const ticketType = await this.prisma.ticketType.create({
+      data: {
+        eventId,
+        name: dto.name,
+        price: dto.price,
+        quota: dto.quota,
+        maxPerUser: dto.maxPerUser,
+        description: dto.description,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+
+    // Invalidate cache event ini
+    await this.cache.invalidateEventDetail(eventId);
+    await this.cache.invalidateAllEventLists();
+
+    return ticketType;
+  }
+
+  // ===========================
+  // PUBLISH EVENT
+  // Mengubah status DRAFT → PUBLISHED
+  // Seed stok tiket ke Redis
+  // ===========================
+  async publishEvent(eventId: string, userId: string, userRole: Role) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    if (event.status !== EventStatus.DRAFT) {
+      throw new BadRequestException(
+        `Event tidak bisa dipublish dari status ${event.status}`,
+      );
+    }
+
+    if (event.ticketTypes.length === 0) {
+      throw new BadRequestException(
+        'Tambahkan minimal satu tipe tiket sebelum publish',
+      );
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: { status: EventStatus.PUBLISHED },
+      include: {
+        ticketTypes: true,
+        creator: { select: { id: true, name: true } },
+      },
+    });
+
+    // Seed stok semua ticket type ke Redis
+    // Menggunakan Promise.all agar parallel, bukan sequential
+    await Promise.all(
+      updated.ticketTypes.map((tt) =>
+        this.cache.seedTicketStock(eventId, tt.id, tt.quota),
+      ),
+    );
+
+    // Update cache
+    await this.cache.invalidateEventDetail(eventId);
+    await this.cache.invalidateAllEventLists();
+
+    this.logger.log(`Event published: ${eventId}`);
+    return updated;
+  }
+
+  // ===========================
+  // GET LIST EVENTS (PUBLIC)
+  // Dengan pagination, filter, search, dan caching
+  // ===========================
+  async getEvents(query: QueryEventDto, isAdmin: boolean) {
+    // Generate cache key unik berdasarkan semua parameter query
+    const cacheKey = this.buildQueryCacheKey(query, isAdmin);
+
+    // Cek cache dulu
+    const cached = await this.cache.getEventList(cacheKey);
+    if (cached) {
+      this.logger.debug(`Cache HIT: event list [${cacheKey}]`);
+      return cached;
+    }
+
+    this.logger.debug(`Cache MISS: event list [${cacheKey}]`);
+
+    const { page = 1, limit = 12, search, city, status } = query;
+    const skip = (page - 1) * limit;
+
+    // Build where clause dinamis
+    const where: any = {};
+
+    // User biasa hanya lihat event PUBLISHED dan SALE_OPEN
+    // Admin bisa lihat semua status
+    if (!isAdmin) {
+      where.status = { in: [EventStatus.PUBLISHED, EventStatus.SALE_OPEN] };
+    } else if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { venue: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (city) {
+      where.city = { contains: city, mode: 'insensitive' };
+    }
+
+    // Jalankan query count & data secara parallel
+    const [total, events] = await Promise.all([
+      this.prisma.event.count({ where }),
+      this.prisma.event.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { eventDate: 'asc' }, // event terdekat muncul pertama
+        select: {
+          id: true,
+          title: true,
+          venue: true,
+          city: true,
+          eventDate: true,
+          saleOpenAt: true,
+          saleCloseAt: true,
+          status: true,
+          bannerUrl: true,
+          ticketTypes: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              quota: true,
+            },
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
+      }),
+    ]);
+
+    // Compute lowestPrice di application layer, bukan di DB
+    const data: EventListItem[] = events.map((event) => ({
+      ...event,
+      lowestPrice:
+        event.ticketTypes.length > 0
+          ? Math.min(...event.ticketTypes.map((tt) => tt.price))
+          : 0,
+    }));
+
+    const result = {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+
+    // Simpan ke cache
+    await this.cache.setEventList(cacheKey, result);
+
+    return result;
+  }
+
+  // ===========================
+  // GET DETAIL EVENT (PUBLIC)
+  // ===========================
+  async getEventById(eventId: string, isAdmin: boolean) {
+    // Cek cache dulu
+    const cached = await this.cache.getEventDetail(eventId);
+    if (cached) {
+      this.logger.debug(`Cache HIT: event detail [${eventId}]`);
+
+      // Non-admin tidak boleh lihat event DRAFT
+      if (!isAdmin && cached.status === EventStatus.DRAFT) {
+        throw new NotFoundException('Event tidak ditemukan');
+      }
+      return cached;
+    }
+
+    this.logger.debug(`Cache MISS: event detail [${eventId}]`);
+
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        ticketTypes: {
+          orderBy: { sortOrder: 'asc' },
+        },
+        creator: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!event) throw new NotFoundException('Event tidak ditemukan');
+
+    if (!isAdmin && event.status === EventStatus.DRAFT) {
+      throw new NotFoundException('Event tidak ditemukan');
+    }
+
+    // Simpan ke cache
+    await this.cache.setEventDetail(eventId, event);
+
+    return event;
+  }
+
+  // ===========================
+  // UPDATE EVENT (ADMIN / ORGANIZER)
+  // ===========================
+  async updateEvent(
+    eventId: string,
+    dto: UpdateEventDto,
+    userId: string,
+    userRole: Role,
+  ) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    // Tidak boleh edit event yang sudah selesai
+    if (event.status === EventStatus.COMPLETED) {
+      throw new BadRequestException(
+        'Event yang sudah selesai tidak bisa diedit',
+      );
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        ...(dto.title && { title: dto.title }),
+        ...(dto.description && { description: dto.description }),
+        ...(dto.venue && { venue: dto.venue }),
+        ...(dto.city && { city: dto.city }),
+        ...(dto.eventDate && { eventDate: new Date(dto.eventDate) }),
+        ...(dto.saleOpenAt && { saleOpenAt: new Date(dto.saleOpenAt) }),
+        ...(dto.saleCloseAt && { saleCloseAt: new Date(dto.saleCloseAt) }),
+        ...(dto.bannerUrl && { bannerUrl: dto.bannerUrl }),
+        ...(dto.status && { status: dto.status }),
+      },
+      include: {
+        ticketTypes: true,
+        creator: { select: { id: true, name: true } },
+      },
+    });
+
+    // Invalidate cache setelah update
+    await Promise.all([
+      this.cache.invalidateEventDetail(eventId),
+      this.cache.invalidateAllEventLists(),
+    ]);
+
+    return updated;
+  }
+
+  // ===========================
+  // DELETE EVENT (ADMIN ONLY)
+  // ===========================
+  async deleteEvent(eventId: string, userRole: Role) {
+    // Hanya ADMIN yang bisa hapus, bukan ORGANIZER
+    if (userRole !== Role.ADMIN) {
+      throw new ForbiddenException('Hanya ADMIN yang bisa menghapus event');
+    }
+
+    const event = await this.findEventOrThrow(eventId);
+
+    if (event.status === EventStatus.SALE_OPEN) {
+      throw new BadRequestException(
+        'Tidak bisa menghapus event yang sedang dalam penjualan',
+      );
+    }
+
+    await this.prisma.event.delete({ where: { id: eventId } });
+
+    await Promise.all([
+      this.cache.invalidateEventDetail(eventId),
+      this.cache.invalidateAllEventLists(),
+    ]);
+
+    return { message: 'Event berhasil dihapus' };
+  }
+
+  // ===========================
+  // PRIVATE HELPERS
+  // ===========================
+  private async findEventOrThrow(eventId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        ticketTypes: true,
+        creator: { select: { id: true, name: true } },
+      },
+    });
+    if (!event) throw new NotFoundException('Event tidak ditemukan');
+    return event;
+  }
+
+  private checkEventOwnership(event: any, userId: string, userRole: Role) {
+    // ADMIN bisa edit semua event
+    // ORGANIZER hanya bisa edit event yang dia buat
+    if (userRole === Role.ADMIN) return;
+
+    if (event.createdBy !== userId) {
+      throw new ForbiddenException('Kamu tidak memiliki akses ke event ini');
+    }
+  }
+
+  private buildQueryCacheKey(query: QueryEventDto, isAdmin: boolean): string {
+    // Buat key deterministik dari semua parameter
+    const parts = [
+      `p:${query.page ?? 1}`,
+      `l:${query.limit ?? 12}`,
+      `s:${query.search ?? ''}`,
+      `c:${query.city ?? ''}`,
+      `st:${query.status ?? ''}`,
+      `admin:${isAdmin}`,
+    ];
+    return parts.join('|');
+  }
+}

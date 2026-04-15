@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
-import { EventModule } from './event/event.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -47,7 +47,7 @@ import { EventModule } from './event/event.module';
 
     AuthModule,
     MailModule,
-    EventModule,
+    EventsModule,
 
     // Feature modules (tambahkan seiring perkembangan)
     // AuthModule,

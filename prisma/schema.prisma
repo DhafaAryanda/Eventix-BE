@@ -36,7 +36,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders Order[]
+  orders        Order[]
+  eventsCreated Event[]
 
   @@index([email])
   @@index([emailVerifyToken])
@@ -54,12 +55,23 @@ model Event {
   title       String
   description String
   venue       String
+  city        String
   eventDate   DateTime
   saleOpenAt  DateTime // ← kapan war tiket dimulai
+  saleCloseAt DateTime?
+  bannerUrl   String? // ← opsional, bisa diisi manual
   status      EventStatus @default(DRAFT)
-  createdAt   DateTime    @default(now())
+  createdBy   String // ← userId yang buat event
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   ticketTypes TicketType[]
+  creator     User         @relation(fields: [createdBy], references: [id])
+
+  @@index([status])
+  @@index([eventDate])
+  @@index([city])
 }
 
 enum EventStatus {
@@ -71,14 +83,16 @@ enum EventStatus {
 }
 
 model TicketType {
-  id         String @id @default(uuid())
-  eventId    String
-  name       String // ← "VVIP", "VIP", "Festival"
-  price      Int // ← dalam satuan Rupiah
-  quota      Int // ← total stok
-  maxPerUser Int    @default(2)
+  id          String  @id @default(uuid())
+  eventId     String
+  name        String // ← "VVIP", "VIP", "Festival"
+  price       Int // ← dalam satuan Rupiah
+  quota       Int // ← total stok
+  maxPerUser  Int     @default(2)
+  description String? // ← tambah, deskripsi benefit tiket
+  sortOrder   Int     @default(0) // ← urutan tampil (VVIP=1, VIP=2, dst)
 
-  event  Event   @relation(fields: [eventId], references: [id])
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   orders Order[]
 
   @@index([eventId])
