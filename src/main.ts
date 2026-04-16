@@ -5,13 +5,20 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 
 async function bootstrap() {
-  console.log('DATABASE_URL:', process.env.DATABASE_URL);
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
+    { bufferLogs: true },
   );
+
+  // Setup Pino logger sebagai logger global
+  const logger = app.get(Logger);
+  app.useLogger(logger);
+
+  logger.log('DATABASE_URL configured', 'Bootstrap');
 
   // Prefix semua route dengan /api
   app.setGlobalPrefix('api');
@@ -26,7 +33,7 @@ async function bootstrap() {
   );
 
   await app.listen(3000, '0.0.0.0');
-  console.log('Server run in: http://localhost:3000');
+  logger.log('Server running on: http://localhost:3000', 'Bootstrap');
 }
 
 void bootstrap();
