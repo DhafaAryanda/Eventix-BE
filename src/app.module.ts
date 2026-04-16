@@ -9,10 +9,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { EventsModule } from './events/events.module';
+import { QueueModule } from './queue/queue.module';
 
 @Module({
   imports: [
-    // Config — harus paling pertama
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -48,6 +48,7 @@ import { EventsModule } from './events/events.module';
     AuthModule,
     MailModule,
     EventsModule,
+    QueueModule,
 
     // Feature modules (tambahkan seiring perkembangan)
     // AuthModule,
