@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "@hapi/joi": "^17.1.1",
     "@nestjs-modules/ioredis": "^2.2.1",
     "@nestjs-modules/mailer": "^1.11.2",
@@ -67,7 +68,7 @@
     "@types/express": "^5.0.0",
     "@types/hapi__joi": "^17.1.15",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.7",
+    "@types/node": "^22.19.17",
     "@types/nodemailer": "^8.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",

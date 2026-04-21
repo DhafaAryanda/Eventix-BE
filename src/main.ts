@@ -6,6 +6,8 @@ import {
 } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
+import { ConfigService } from '@nestjs/config';
+import fastifyCors from '@fastify/cors';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -18,7 +20,32 @@ async function bootstrap() {
   const logger = app.get(Logger);
   app.useLogger(logger);
 
+  // Get ConfigService untuk akses environment variables
+  const configService = app.get(ConfigService);
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+  const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
+
   logger.log('DATABASE_URL configured', 'Bootstrap');
+
+  // Konfigurasi CORS untuk Fastify
+  await app.register(fastifyCors, {
+    origin:
+      nodeEnv === 'production'
+        ? [frontendUrl] // Production: hanya izinkan frontend URL yang ditentukan
+        : true, // Development: izinkan semua origin
+    credentials: true, // Izinkan cookies dan authorization headers
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    exposedHeaders: ['Authorization'],
+    maxAge: 86400, // Cache preflight request selama 24 jam
+  });
 
   // Prefix semua route dengan /api
   app.setGlobalPrefix('api');
@@ -32,8 +59,12 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(3000, '0.0.0.0');
-  logger.log('Server running on: http://localhost:3000', 'Bootstrap');
+  await app.listen(3001, '0.0.0.0');
+  logger.log('Server running on: http://localhost:3001', 'Bootstrap');
+  logger.log(
+    `CORS enabled for: ${nodeEnv === 'production' ? frontendUrl : 'all origins (development)'}`,
+    'Bootstrap',
+  );
 }
 
 void bootstrap();
