@@ -38,6 +38,21 @@ export class EventsController {
     return this.eventsService.getEvents(query, isAdmin);
   }
 
+  // GET /api/my/events — dashboard creator
+  // Tampilkan semua event milik creator yang sedang login
+  // termasuk DRAFT
+
+  @Get('my/events')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.ORGANIZER)
+  getMyEvents(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: Role,
+    @Query() query: QueryEventDto,
+  ) {
+    return this.eventsService.getMyEvents(userId, userRole, query);
+  }
+
   // GET /api/events/:id
   @Get(':id')
   getEventById(

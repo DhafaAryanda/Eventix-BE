@@ -12,6 +12,8 @@ import { MailModule } from './mail/mail.module';
 import { EventsModule } from './events/events.module';
 import { QueueModule } from './queue/queue.module';
 import { TicketModule } from './ticket/ticket.module';
+import { OrderModule } from './order/order.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -90,6 +92,8 @@ import { TicketModule } from './ticket/ticket.module';
     EventsModule,
     QueueModule,
     TicketModule,
+    OrderModule,
+    PaymentModule,
 
     // Feature modules (tambahkan seiring perkembangan)
     // AuthModule,
