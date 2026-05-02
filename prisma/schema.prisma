@@ -5,8 +5,8 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
 }
 
 datasource db {
@@ -15,19 +15,39 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now())
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+  name     String
+  role     Role   @default(USER)
 
-  orders Order[]
+  // Email verification
+  isEmailVerified    Boolean   @default(false)
+  emailVerifyToken   String?   @unique
+  emailVerifyExpires DateTime?
+
+  // Forgot password
+  resetPasswordToken   String?   @unique
+  resetPasswordExpires DateTime?
+
+  // Refresh token
+  refreshTokenHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders        Order[]
+  eventsCreated Event[]
+
+  @@index([email])
+  @@index([emailVerifyToken])
+  @@index([resetPasswordToken])
 }
 
 enum Role {
   USER
   ADMIN
+  ORGANIZER
 }
 
 model Event {
@@ -35,12 +55,23 @@ model Event {
   title       String
   description String
   venue       String
+  city        String
   eventDate   DateTime
   saleOpenAt  DateTime // ← kapan war tiket dimulai
+  saleCloseAt DateTime?
+  bannerUrl   String? // ← opsional, bisa diisi manual
   status      EventStatus @default(DRAFT)
-  createdAt   DateTime    @default(now())
+  createdBy   String // ← userId yang buat event
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   ticketTypes TicketType[]
+  creator     User         @relation(fields: [createdBy], references: [id])
+
+  @@index([status])
+  @@index([eventDate])
+  @@index([city])
 }
 
 enum EventStatus {
@@ -52,16 +83,19 @@ enum EventStatus {
 }
 
 model TicketType {
-  id         String @id @default(uuid())
-  eventId    String
-  name       String // ← "VVIP", "VIP", "Festival"
-  price      Int // ← dalam satuan Rupiah
-  quota      Int // ← total stok
-  maxPerUser Int    @default(2)
+  id          String  @id @default(uuid())
+  eventId     String
+  name        String // ← "VVIP", "VIP", "Festival"
+  price       Int // ← dalam satuan Rupiah
+  quota       Int // ← total stok
+  maxPerUser  Int     @default(2)
+  description String? // ← tambah, deskripsi benefit tiket
+  sortOrder   Int     @default(0) // ← urutan tampil (VVIP=1, VIP=2, dst)
 
-  event  Event   @relation(fields: [eventId], references: [id])
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   orders Order[]
 
+  @@unique([eventId, name])
   @@index([eventId])
 }
 
@@ -74,8 +108,11 @@ model Order {
   status           OrderStatus @default(PENDING)
   reservationToken String?     @unique
   expiresAt        DateTime? //  ← batas waktu bayar
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+
+  // paymentMethod PaymentMethod? // dipilih user saat create order
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user       User       @relation(fields: [userId], references: [id])
   ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
@@ -83,10 +120,12 @@ model Order {
 
   @@index([userId])
   @@index([status])
+  @@index([expiresAt])
 }
 
 enum OrderStatus {
   PENDING
+  WAITING_PAYMENT
   PAID
   CANCELLED
   EXPIRED
@@ -98,11 +137,41 @@ model Payment {
   externalId String        @unique // ← ID dari Midtrans/Xendit
   amount     Int
   status     PaymentStatus @default(PENDING)
-  paymentUrl String?
-  paidAt     DateTime?
-  createdAt  DateTime      @default(now())
+
+  // Invoice API
+  xenditInvoiceId String? @unique
+  invoiceUrl      String?
+
+  // Detail metode pembayaran
+  paymentMethod  String? // "BANK_TRANSFER", "QRIS", "EWALLET", dll
+  paymentChannel String? // "BCA", "GOPAY", "OVO", "DANA", dll
+
+  // // Detail VA (jika paymentMethod = VA)
+  // vaBankCode String? // "BCA", "BNI", "MANDIRI", dst
+  // vaNumber   String? // nomor virtual account
+
+  // // Detail QRIS
+  // qrString    String? // string untuk generate QR code
+  // qrExpiresAt DateTime?
+
+  // Detail E-Wallet
+  // ewalletChannel     String? // "GOPAY", "OVO", "DANA"
+  // ewalletCheckoutUrl String? // URL redirect ke app e-wallet
+
+  // Xendit reference
+  // xenditPaymentId String? // ID dari Xendit setelah payment dibuat
+  paidAt        DateTime?
+  failureReason String? // alasan gagal jika ada
+  expiresAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   order Order @relation(fields: [orderId], references: [id])
+
+  @@index([externalId])
+  @@index([xenditInvoiceId])
+  @@index([status])
 }
 
 enum PaymentStatus {
@@ -111,3 +180,10 @@ enum PaymentStatus {
   FAILED
   EXPIRED
 }
+
+// enum PaymentMethod {
+//   VA // Virtual Account
+//   QRIS
+//   EWALLET
+//   INVOICE
+// }
