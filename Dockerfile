@@ -3,13 +3,18 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
+
+# Install semua dependencies termasuk devDependencies untuk nest build
 RUN npm ci
 
 COPY . .
-# Dummy DATABASE_URL hanya untuk prisma generate saat build
+
 ENV DATABASE_URL="postgresql://postgres:password@localhost:5432/eventix"
 RUN npx prisma generate
 RUN npm run build
+
+# Verifikasi dist ada
+RUN ls -la dist/
 
 # Stage 2: Production
 FROM node:20-alpine AS runner
