@@ -12,7 +12,7 @@ export class MailService {
     token: string;
     baseUrl: string;
   }) {
-    const url = `${opts.baseUrl}/api/auth/verify-email?token=${opts.token}`;
+    const url = `${opts.baseUrl}/verify-email?token=${opts.token}`;
 
     await this.mailer.sendMail({
       to: opts.to,

@@ -12,16 +12,9 @@ import {
 } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { PaymentService } from '../payment/payment.service';
-// import { CreatePaymentDto } from '../payment/dto/create-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { IsString, IsNotEmpty } from 'class-validator';
-
-class CreateOrderDto {
-  @IsString()
-  @IsNotEmpty()
-  reservationToken: string;
-}
+import { CreateOrderDto } from './dto/create-order.dto';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard) // semua endpoint order butuh login

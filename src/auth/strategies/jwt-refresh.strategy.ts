@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -10,6 +10,8 @@ export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
+  private readonly logger = new Logger(JwtRefreshStrategy.name);
+
   constructor(config: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -21,7 +23,6 @@ export class JwtRefreshStrategy extends PassportStrategy(
 
   validate(req: FastifyRequest, payload: JwtPayload): JwtPayloadWithRefresh {
     const authHeader = req.headers.authorization;
-    console.log('🔑 Auth Header:', authHeader);
 
     if (!authHeader) {
       throw new UnauthorizedException();
@@ -31,8 +32,6 @@ export class JwtRefreshStrategy extends PassportStrategy(
     if (!refreshToken) {
       throw new UnauthorizedException();
     }
-
-    console.log('✅ Refresh token extracted, length:', refreshToken.length);
 
     return {
       sub: payload.sub,

@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   ConflictException,
   UnauthorizedException,
   NotFoundException,
@@ -20,6 +21,8 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -71,8 +74,7 @@ export class AuthService {
         baseUrl: baseUrl,
       })
       .catch((err) => {
-        // Log error tapi tidak gagalkan registrasi
-        console.error('Gagal kirim email verifikasi:', err);
+        this.logger.error('Gagal kirim email verifikasi', err.stack);
       });
 
     return {
@@ -149,7 +151,9 @@ export class AuthService {
         token: emailVerifyToken,
         baseUrl: baseUrl,
       })
-      .catch(console.error);
+      .catch((err) => {
+        this.logger.error('Gagal kirim ulang email verifikasi', err.stack);
+      });
 
     return {
       message:
@@ -200,39 +204,26 @@ export class AuthService {
   // REFRESH TOKEN
   // ===========================
   async refreshTokens(userId: string, rawRefreshToken: string) {
-    console.log('🔄 refreshTokens() called');
-    console.log('👤 User ID:', userId);
-    console.log('🔑 Raw token length:', rawRefreshToken.length);
-
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
-    console.log('👤 User found:', !!user);
-    console.log('🔐 Has refresh token hash:', !!user?.refreshTokenHash);
-
     if (!user || !user.refreshTokenHash) {
-      console.log('❌ User not found or no refresh token hash');
       throw new UnauthorizedException('Akses ditolak');
     }
 
-    // Verifikasi refresh token dengan membandingkan hash
-    console.log('🔍 Comparing tokens...');
     const tokenValid = await bcrypt.compare(
       rawRefreshToken,
       user.refreshTokenHash,
     );
-    console.log('✅ Token valid:', tokenValid);
 
     if (!tokenValid) {
-      console.log('❌ Token comparison failed');
       throw new UnauthorizedException('Refresh token tidak valid');
     }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
-    console.log('✅ New tokens generated');
     return tokens;
   }
 
@@ -288,7 +279,9 @@ export class AuthService {
         token: resetToken,
         baseUrl: baseUrl,
       })
-      .catch(console.error);
+      .catch((err) => {
+        this.logger.error('Gagal kirim email reset password', err.stack);
+      });
 
     return genericMessage;
   }

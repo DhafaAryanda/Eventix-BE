@@ -57,62 +57,6 @@ export class XenditClient {
     );
   }
 
-  // // ===========================
-  // // VIRTUAL ACCOUNT
-  // // ===========================
-  // async createVA(payload: CreateVARequest): Promise<XenditVAResponse> {
-  //   try {
-  //     const { data } = await this.http.post<XenditVAResponse>(
-  //       '/callback_virtual_accounts',
-  //       payload,
-  //     );
-  //     return data;
-  //   } catch (err) {
-  //     this.handleXenditError(err, 'createVA');
-  //   }
-  // }
-
-  // // ===========================
-  // // QRIS
-  // // ===========================
-  // async createQRIS(payload: CreateQRISRequest): Promise<XenditQRISResponse> {
-  //   try {
-  //     const { data } = await this.http.post<XenditQRISResponse>(
-  //       '/qr_codes',
-  //       payload,
-  //     );
-  //     return data;
-  //   } catch (err) {
-  //     this.handleXenditError(err, 'createQRIS');
-  //   }
-  // }
-
-  // // ===========================
-  // // E-WALLET
-  // // ===========================
-  // async createEWallet(
-  //   payload: CreateEWalletRequest,
-  // ): Promise<XenditEWalletResponse> {
-  //   try {
-  //     const { data } = await this.http.post<XenditEWalletResponse>(
-  //       '/ewallets/charges',
-  //       payload,
-  //     );
-  //     return data;
-  //   } catch (err) {
-  //     this.handleXenditError(err, 'createEWallet');
-  //   }
-  // }
-
-  // async createInvoice(payload: any) {
-  //   try {
-  //     const { data } = await this.http.post('/v2/invoices', payload);
-  //     return data;
-  //   } catch (err) {
-  //     this.handleXenditError(err, 'createInvoice');
-  //   }
-  // }
-
   // ===========================
   // CREATE INVOICE
   // Satu method untuk semua metode pembayaran
@@ -157,22 +101,3 @@ export class XenditClient {
     throw err;
   }
 }
-
-// // ===========================
-// // ERROR HANDLER
-// // ===========================
-// private handleXenditError(err: unknown, method: string): never {
-//   if (axios.isAxiosError(err)) {
-//     const status = err.response?.status;
-//     const message = err.response?.data?.message ?? err.message;
-
-//     this.logger.error(`Xendit ${method} failed: [${status}] ${message}`);
-
-//     // Lempar error yang informatif ke service
-//     throw new InternalServerErrorException(
-//       `Gagal membuat pembayaran: ${message}`,
-//     );
-//   }
-//   throw err;
-// }
-// }
