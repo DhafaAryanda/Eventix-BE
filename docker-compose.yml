@@ -1,28 +1,62 @@
-# docker-compose.yml
+version: '3.8'
+
 services:
+  app:
+    build: .
+    container_name: eventix-be
+    expose:
+      - '4000'
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - shared-net
+      - internal-net
+
   postgres:
     image: postgres:16-alpine
+    container_name: eventix-postgres
     environment:
-      POSTGRES_DB: wartiket
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    ports:
-      - '5432:5432' # bisa diakses dari komputer lokal
+      POSTGRES_DB: eventix
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready', '-U', 'postgres']
-      interval: 5s
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - internal-net
 
   redis:
     image: redis:7-alpine
+    container_name: eventix-redis
     command: redis-server --requirepass redispassword
-    ports:
-      - '6379:6379'
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'redispassword', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - internal-net
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  shared-net:
+    external: true
+  internal-net:
+    driver: bridge
