@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: ghcr.io/<github-username>/eventix-be:latest
+    image: ghcr.io/dhafaaryanda/eventix-be:latest
     build: .
     container_name: eventix-be
     expose:
