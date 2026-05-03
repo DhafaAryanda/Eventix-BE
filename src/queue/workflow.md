@@ -25,3 +25,4 @@
 
 6. User yang dapat 'YOUR_TURN' → lanjut ke Fase 5 (Reserve Seat)
    Session token dipakai sekali, lalu dihapus dari Redis
+   #
