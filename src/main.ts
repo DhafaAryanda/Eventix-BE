@@ -59,8 +59,8 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(3000, '0.0.0.0');
-  logger.log('Server running on: http://localhost:3001', 'Bootstrap');
+  await app.listen(4000, '0.0.0.0');
+  logger.log('Server running on: http://localhost:4000', 'Bootstrap');
   logger.log(
     `CORS enabled for: ${nodeEnv === 'production' ? frontendUrl : 'all origins (development)'}`,
     'Bootstrap',
