@@ -1,18 +1,20 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { FastifyRequest } from 'fastify';
 import { JwtPayload, JwtPayloadWithRefresh } from '../types/jwt-payload.type';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
-  private readonly logger = new Logger(JwtRefreshStrategy.name);
-
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private prisma: PrismaService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
@@ -21,17 +23,22 @@ export class JwtRefreshStrategy extends PassportStrategy(
     });
   }
 
-  validate(req: FastifyRequest, payload: JwtPayload): JwtPayloadWithRefresh {
+  async validate(
+    req: FastifyRequest,
+    payload: JwtPayload,
+  ): Promise<JwtPayloadWithRefresh> {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      throw new UnauthorizedException();
-    }
+    if (!authHeader) throw new UnauthorizedException();
 
     const refreshToken = authHeader.replace('Bearer ', '').trim();
-    if (!refreshToken) {
-      throw new UnauthorizedException();
-    }
+    if (!refreshToken) throw new UnauthorizedException();
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, refreshTokenHash: true },
+    });
+
+    if (!user || !user.refreshTokenHash) throw new UnauthorizedException();
 
     return {
       sub: payload.sub,

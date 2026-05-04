@@ -8,6 +8,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import fastifyCors from '@fastify/cors';
+import { PrismaExceptionFilter } from './prisma/prisma-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -49,6 +50,9 @@ async function bootstrap() {
 
   // Prefix semua route dengan /api
   app.setGlobalPrefix('api');
+
+  // Global filter untuk Prisma errors
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   // Validasi otomatis semua request body
   app.useGlobalPipes(

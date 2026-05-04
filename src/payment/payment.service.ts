@@ -5,12 +5,10 @@ import {
   NotFoundException,
   BadRequestException,
   UnauthorizedException,
-  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
 import { XenditClient } from './xendit/xendit.client';
 import { XenditInvoiceWebhookPayload } from './xendit/xendit.types';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
@@ -139,27 +137,17 @@ export class PaymentService {
       },
     });
 
-    // Simpan payment ke DB dalam transaksi
-    const payment = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          orderId,
-          externalId,
-          amount: order.totalAmount,
-          status: PaymentStatus.PENDING,
-          xenditInvoiceId: invoice.id,
-          invoiceUrl: invoice.invoice_url,
-          expiresAt: new Date(invoice.expiry_date),
-        },
-      });
-
-      // Update order status
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: OrderStatus.WAITING_PAYMENT },
-      });
-
-      return payment;
+    // Simpan payment ke DB
+    const payment = await this.prisma.payment.create({
+      data: {
+        orderId,
+        externalId,
+        amount: order.totalAmount,
+        status: PaymentStatus.PENDING,
+        xenditInvoiceId: invoice.id,
+        invoiceUrl: invoice.invoice_url,
+        expiresAt: new Date(invoice.expiry_date),
+      },
     });
 
     this.logger.log(

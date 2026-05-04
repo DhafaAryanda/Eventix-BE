@@ -4,7 +4,11 @@
       "Bash(New-Item -Path \"D:\\\\My-Project\\\\Eventix-BE\\\\src\\\\order\\\\dto\\\\create-order.dto.ts\" -ItemType File -Force)",
       "Bash(Out-Null)",
       "Bash(Write-Output \"created\")",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\My-Project\\\\Eventix-BE\\\\src\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('version','unknown'\\)\\)\")"
     ]
   }
 }

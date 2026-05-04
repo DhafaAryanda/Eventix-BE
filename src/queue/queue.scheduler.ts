@@ -1,20 +1,19 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue, QueueEvents } from 'bullmq';
+import { Cron } from '@nestjs/schedule';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueCache } from './queue.cache';
 import {
   QUEUE_NAME,
   JOB_NAMES,
   BATCH_SIZE,
-  PROCESSOR_INTERVAL_MS,
 } from './constants/queue.constants';
 import { EventStatus } from '@prisma/client';
 
 @Injectable()
-export class QueueScheduler implements OnModuleDestroy {
+export class QueueScheduler {
   private readonly logger = new Logger(QueueScheduler.name);
-  private intervalId: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectQueue(QUEUE_NAME) private bullQueue: Queue,
@@ -22,40 +21,10 @@ export class QueueScheduler implements OnModuleDestroy {
     private queueCache: QueueCache,
   ) {}
 
-  // Dipanggil saat module siap
-  // Tidak pakai @Cron agar lebih kontrol — bisa start/stop manual
-  onModuleInit() {
-    this.startScheduler();
-  }
-
-  onModuleDestroy() {
-    this.stopScheduler();
-  }
-
-  startScheduler() {
-    if (this.intervalId) return; // sudah jalan
-
-    this.logger.log(
-      `Queue scheduler started — interval: ${PROCESSOR_INTERVAL_MS}ms`,
-    );
-
-    this.intervalId = setInterval(
-      () => this.scheduleActiveBatches(),
-      PROCESSOR_INTERVAL_MS,
-    );
-  }
-
-  stopScheduler() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-      this.logger.log('Queue scheduler stopped');
-    }
-  }
-
   // Cari semua event yang sedang dalam penjualan,
   // lalu schedule batch job untuk masing-masing
-  private async scheduleActiveBatches() {
+  @Cron('*/30 * * * * *')
+  async scheduleActiveBatches() {
     try {
       // Ambil semua event yang penjualannya sedang buka
       const activeEvents = await this.prisma.event.findMany({

@@ -26,7 +26,7 @@ export class TicketScheduler {
       // Ambil semua order yang expired tapi masih PENDING
       const expiredOrders = await this.prisma.order.findMany({
         where: {
-          status: OrderStatus.PENDING,
+          status: OrderStatus.WAITING_PAYMENT,
           expiresAt: { lt: new Date() },
         },
         select: {
