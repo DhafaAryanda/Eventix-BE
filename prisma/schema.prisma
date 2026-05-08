@@ -15,11 +15,13 @@ datasource db {
 }
 
 model User {
-  id       String @id @default(uuid())
-  email    String @unique
+  id       String  @id @default(uuid())
+  email    String  @unique
   password String
   name     String
-  role     Role   @default(USER)
+  phoneNo  String? @unique
+  city     String?
+  role     Role    @default(USER)
 
   // Email verification
   isEmailVerified    Boolean   @default(false)
@@ -61,6 +63,8 @@ model Event {
   saleCloseAt DateTime?
   bannerUrl   String? // ← opsional, bisa diisi manual
   status      EventStatus @default(DRAFT)
+  eventType   EventType?
+  tags        String[]    @default([])
   createdBy   String // ← userId yang buat event
 
   createdAt DateTime @default(now())
@@ -72,6 +76,7 @@ model Event {
   @@index([status])
   @@index([eventDate])
   @@index([city])
+  @@index([eventType])
 }
 
 enum EventStatus {
@@ -80,6 +85,20 @@ enum EventStatus {
   SALE_OPEN
   SOLD_OUT
   COMPLETED
+}
+
+enum EventType {
+  MUSIC
+  SPORTS
+  ARTS
+  TECHNOLOGY
+  FOOD
+  BUSINESS
+  EDUCATION
+  ENTERTAINMENT
+  HEALTH
+  SOCIAL
+  OTHER
 }
 
 model TicketType {

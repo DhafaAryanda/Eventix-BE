@@ -6,7 +6,10 @@ import {
   MinLength,
   MaxLength,
   IsUrl,
+  IsEnum,
+  IsArray,
 } from 'class-validator';
+import { EventType } from '@prisma/client';
 
 export class CreateEventDto {
   @IsString()
@@ -43,4 +46,14 @@ export class CreateEventDto {
   @IsUrl({}, { message: 'Format URL banner tidak valid' })
   @IsOptional()
   bannerUrl?: string;
+
+  @IsEnum(EventType)
+  @IsOptional()
+  eventType?: EventType;
+
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  @IsOptional()
+  tags?: string[];
 }

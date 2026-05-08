@@ -10,7 +10,7 @@ import { EventsCache } from './events.cache';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
-import { QueryEventDto } from './dto/query-event.dto';
+import { EventSortBy, QueryEventDto } from './dto/query-event.dto';
 import { EventStatus, Role } from '@prisma/client';
 import { EventListItem } from './types/event-with-types.type';
 import { TicketCache } from 'src/ticket/ticket.cache';
@@ -58,6 +58,8 @@ export class EventsService {
         saleOpenAt,
         saleCloseAt,
         bannerUrl: dto.bannerUrl,
+        eventType: dto.eventType,
+        tags: dto.tags ?? [],
         createdBy: userId,
         status: EventStatus.DRAFT,
       },
@@ -176,7 +178,16 @@ export class EventsService {
 
     this.logger.debug(`Cache MISS: event list [${cacheKey}]`);
 
-    const { page = 1, limit = 12, search, city, status } = query;
+    const {
+      page = 1,
+      limit = 12,
+      search,
+      city,
+      status,
+      eventType,
+      tag,
+      sortBy,
+    } = query;
     const skip = (page - 1) * limit;
 
     // Build where clause dinamis
@@ -202,6 +213,31 @@ export class EventsService {
       where.city = { contains: city, mode: 'insensitive' };
     }
 
+    if (eventType) {
+      where.eventType = eventType;
+    }
+
+    if (tag) {
+      where.tags = { has: tag };
+    }
+
+    let orderBy: any;
+    switch (sortBy) {
+      case EventSortBy.NEWEST:
+        orderBy = { createdAt: 'desc' };
+        break;
+      case EventSortBy.LOWEST_PRICE:
+        orderBy = { ticketTypes: { _min: { price: 'asc' } } };
+        break;
+      case EventSortBy.HIGHEST_PRICE:
+        orderBy = { ticketTypes: { _max: { price: 'desc' } } };
+        break;
+      case EventSortBy.NEAREST:
+      default:
+        orderBy = { eventDate: 'asc' };
+        break;
+    }
+
     // Jalankan query count & data secara parallel
     const [total, events] = await Promise.all([
       this.prisma.event.count({ where }),
@@ -209,7 +245,7 @@ export class EventsService {
         where,
         skip,
         take: limit,
-        orderBy: { eventDate: 'asc' }, // event terdekat muncul pertama
+        orderBy,
         select: {
           id: true,
           title: true,
@@ -220,6 +256,8 @@ export class EventsService {
           saleCloseAt: true,
           status: true,
           bannerUrl: true,
+          eventType: true,
+          tags: true,
           ticketTypes: {
             select: {
               id: true,
@@ -329,6 +367,8 @@ export class EventsService {
         ...(dto.saleCloseAt && { saleCloseAt: new Date(dto.saleCloseAt) }),
         ...(dto.bannerUrl && { bannerUrl: dto.bannerUrl }),
         ...(dto.status && { status: dto.status }),
+        ...(dto.eventType !== undefined && { eventType: dto.eventType }),
+        ...(dto.tags !== undefined && { tags: dto.tags }),
       },
       include: {
         ticketTypes: true,
@@ -520,6 +560,9 @@ export class EventsService {
       `s:${query.search ?? ''}`,
       `c:${query.city ?? ''}`,
       `st:${query.status ?? ''}`,
+      `et:${query.eventType ?? ''}`,
+      `tg:${query.tag ?? ''}`,
+      `sb:${query.sortBy ?? EventSortBy.NEAREST}`,
       `admin:${isAdmin}`,
     ];
     return parts.join('|');

@@ -22,6 +22,8 @@ export type EventListItem = Pick<
   | 'saleCloseAt'
   | 'status'
   | 'bannerUrl'
+  | 'eventType'
+  | 'tags'
 > & {
   ticketTypes: Pick<TicketType, 'id' | 'name' | 'price' | 'quota'>[];
   lowestPrice: number; // harga tiket termurah, computed

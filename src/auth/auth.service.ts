@@ -53,6 +53,8 @@ export class AuthService {
       data: {
         email: dto.email,
         name: dto.name,
+        city: dto.city,
+        phoneNo: dto.phoneNo,
         password,
         emailVerifyToken,
         emailVerifyExpires,
@@ -194,8 +196,11 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        phoneNo: user.phoneNo,
+        city: user.city,
         name: user.name,
         role: user.role,
+        createdAt: user.createdAt,
       },
     };
   }

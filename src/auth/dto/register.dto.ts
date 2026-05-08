@@ -16,6 +16,15 @@ export class RegisterDto {
   name: string;
 
   @IsString()
+  @MaxLength(64)
+  city?: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(16)
+  phoneNo?: string;
+
+  @IsString()
   @MinLength(8, { message: 'Password minimal 8 karakter' })
   @MaxLength(64)
   @Matches(/^(?=.*[A-Z])(?=.*[0-9])(?=.*[a-z])/, {
