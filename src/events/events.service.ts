@@ -222,16 +222,18 @@ export class EventsService {
     }
 
     let orderBy: any;
+    const isAppLayerSort =
+      sortBy === EventSortBy.LOWEST_PRICE ||
+      sortBy === EventSortBy.HIGHEST_PRICE ||
+      sortBy === EventSortBy.NEAREST ||
+      sortBy === undefined;
+
     switch (sortBy) {
       case EventSortBy.NEWEST:
         orderBy = { createdAt: 'desc' };
         break;
       case EventSortBy.LOWEST_PRICE:
-        orderBy = { ticketTypes: { _min: { price: 'asc' } } };
-        break;
       case EventSortBy.HIGHEST_PRICE:
-        orderBy = { ticketTypes: { _max: { price: 'desc' } } };
-        break;
       case EventSortBy.NEAREST:
       default:
         orderBy = { eventDate: 'asc' };
@@ -243,8 +245,8 @@ export class EventsService {
       this.prisma.event.count({ where }),
       this.prisma.event.findMany({
         where,
-        skip,
-        take: limit,
+        // App-layer sorts require fetching all records before paginating
+        ...(isAppLayerSort ? {} : { skip, take: limit }),
         orderBy,
         select: {
           id: true,
@@ -265,20 +267,37 @@ export class EventsService {
               price: true,
               quota: true,
             },
-            orderBy: { sortOrder: 'asc' },
+            orderBy: { sortOrder: 'asc' as const },
           },
         },
       }),
     ]);
 
     // Compute lowestPrice di application layer, bukan di DB
-    const data: EventListItem[] = events.map((event) => ({
+    let data: EventListItem[] = events.map((event) => ({
       ...event,
       lowestPrice:
         event.ticketTypes.length > 0
           ? Math.min(...event.ticketTypes.map((tt) => tt.price))
           : 0,
     }));
+
+    if (sortBy === EventSortBy.LOWEST_PRICE) {
+      data.sort((a, b) => a.lowestPrice - b.lowestPrice);
+    } else if (sortBy === EventSortBy.HIGHEST_PRICE) {
+      data.sort((a, b) => b.lowestPrice - a.lowestPrice);
+    } else if (sortBy === EventSortBy.NEAREST || sortBy === undefined) {
+      const now = Date.now();
+      data.sort(
+        (a, b) =>
+          Math.abs(a.eventDate.getTime() - now) -
+          Math.abs(b.eventDate.getTime() - now),
+      );
+    }
+
+    if (isAppLayerSort) {
+      data = data.slice(skip, skip + limit);
+    }
 
     const result = {
       data,
