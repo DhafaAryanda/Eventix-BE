@@ -11,6 +11,7 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { EventSortBy, QueryEventDto } from './dto/query-event.dto';
+import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { EventStatus, Role } from '@prisma/client';
 import { EventListItem } from './types/event-with-types.type';
 import { TicketCache } from 'src/ticket/ticket.cache';
@@ -115,6 +116,91 @@ export class EventsService {
     await this.cache.invalidateAllEventLists();
 
     return ticketType;
+  }
+
+  // ===========================
+  // UPDATE TICKET TYPE (ADMIN / ORGANIZER)
+  // ===========================
+  async updateTicketType(
+    eventId: string,
+    ticketTypeId: string,
+    dto: UpdateTicketTypeDto,
+    userId: string,
+    userRole: Role,
+  ) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    if (
+      event.status === EventStatus.SALE_OPEN ||
+      event.status === EventStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Tidak bisa mengubah tipe tiket saat penjualan sudah dibuka atau event selesai',
+      );
+    }
+
+    const ticketType = event.ticketTypes.find((tt) => tt.id === ticketTypeId);
+    if (!ticketType) throw new NotFoundException('Tipe tiket tidak ditemukan');
+
+    const updated = await this.prisma.ticketType.update({
+      where: { id: ticketTypeId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.quota !== undefined && { quota: dto.quota }),
+        ...(dto.maxPerUser !== undefined && { maxPerUser: dto.maxPerUser }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+      },
+    });
+
+    await this.cache.invalidateEventDetail(eventId);
+    await this.cache.invalidateAllEventLists();
+
+    return updated;
+  }
+
+  // ===========================
+  // DELETE TICKET TYPE (ADMIN / ORGANIZER)
+  // ===========================
+  async deleteTicketType(
+    eventId: string,
+    ticketTypeId: string,
+    userId: string,
+    userRole: Role,
+  ) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    if (
+      event.status === EventStatus.SALE_OPEN ||
+      event.status === EventStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Tidak bisa menghapus tipe tiket saat penjualan sudah dibuka atau event selesai',
+      );
+    }
+
+    const ticketType = event.ticketTypes.find((tt) => tt.id === ticketTypeId);
+    if (!ticketType) throw new NotFoundException('Tipe tiket tidak ditemukan');
+
+    const orderCount = await this.prisma.order.count({
+      where: { ticketTypeId, status: { not: 'CANCELLED' } },
+    });
+
+    if (orderCount > 0) {
+      throw new BadRequestException(
+        'Tidak bisa menghapus tipe tiket yang sudah memiliki order',
+      );
+    }
+
+    await this.prisma.ticketType.delete({ where: { id: ticketTypeId } });
+
+    await this.cache.invalidateEventDetail(eventId);
+    await this.cache.invalidateAllEventLists();
+
+    return { message: 'Tipe tiket berhasil dihapus' };
   }
 
   // ===========================
@@ -545,6 +631,56 @@ export class EventsService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  // ===========================
+  // GET DETAIL MY EVENT (ADMIN / ORGANIZER)
+  // Includes totalOrders + real-time stock per ticket type
+  // ===========================
+  async getMyEventById(eventId: string, userId: string, userRole: Role) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    const ticketTypeIds = event.ticketTypes.map((tt) => tt.id);
+
+    const orderCounts =
+      ticketTypeIds.length > 0
+        ? await this.prisma.order.groupBy({
+            by: ['ticketTypeId'],
+            where: {
+              ticketTypeId: { in: ticketTypeIds },
+              status: { not: 'CANCELLED' },
+            },
+            _count: { id: true },
+          })
+        : [];
+
+    const orderCountByTicketType = new Map<string, number>(
+      orderCounts.map((oc) => [oc.ticketTypeId, oc._count.id]),
+    );
+
+    const totalOrders = event.ticketTypes.reduce(
+      (acc, tt) => acc + (orderCountByTicketType.get(tt.id) ?? 0),
+      0,
+    );
+
+    const isActive =
+      event.status === EventStatus.PUBLISHED ||
+      event.status === EventStatus.SALE_OPEN;
+
+    const stockMap = isActive
+      ? await this.ticketCache.getStockBulk(eventId, ticketTypeIds)
+      : {};
+
+    return {
+      ...event,
+      ticketTypes: event.ticketTypes.map((tt) => ({
+        ...tt,
+        available: stockMap[tt.id] ?? tt.quota,
+        orders: orderCountByTicketType.get(tt.id) ?? 0,
+      })),
+      totalOrders,
     };
   }
 

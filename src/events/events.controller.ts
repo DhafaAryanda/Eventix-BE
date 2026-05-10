@@ -19,6 +19,7 @@ import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
+import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { QueryEventDto } from './dto/query-event.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -41,10 +42,7 @@ export class EventsController {
     return this.eventsService.getEvents(query, isAdmin);
   }
 
-  // GET /api/my/events — dashboard creator
-  // Tampilkan semua event milik creator yang sedang login
-  // termasuk DRAFT
-
+  // GET /api/events/my/events — dashboard creator
   @Get('my/events')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.ORGANIZER)
@@ -54,6 +52,18 @@ export class EventsController {
     @Query() query: QueryEventDto,
   ) {
     return this.eventsService.getMyEvents(userId, userRole, query);
+  }
+
+  // GET /api/events/my/events/:id — detail event milik creator
+  @Get('my/events/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.ORGANIZER)
+  getMyEventById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: Role,
+  ) {
+    return this.eventsService.getMyEventById(id, userId, userRole);
   }
 
   // GET /api/events/:id
@@ -91,6 +101,34 @@ export class EventsController {
     @CurrentUser('role') userRole: Role,
   ) {
     return this.eventsService.addTicketType(eventId, dto, userId, userRole);
+  }
+
+  // PATCH /api/events/:id/ticket-types/:ticketTypeId
+  @Patch(':id/ticket-types/:ticketTypeId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.ORGANIZER)
+  updateTicketType(
+    @Param('id', ParseUUIDPipe) eventId: string,
+    @Param('ticketTypeId', ParseUUIDPipe) ticketTypeId: string,
+    @Body() dto: UpdateTicketTypeDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: Role,
+  ) {
+    return this.eventsService.updateTicketType(eventId, ticketTypeId, dto, userId, userRole);
+  }
+
+  // DELETE /api/events/:id/ticket-types/:ticketTypeId
+  @Delete(':id/ticket-types/:ticketTypeId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.ORGANIZER)
+  @HttpCode(HttpStatus.OK)
+  deleteTicketType(
+    @Param('id', ParseUUIDPipe) eventId: string,
+    @Param('ticketTypeId', ParseUUIDPipe) ticketTypeId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: Role,
+  ) {
+    return this.eventsService.deleteTicketType(eventId, ticketTypeId, userId, userRole);
   }
 
   // PATCH /api/events/:id/publish

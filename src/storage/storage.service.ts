@@ -36,7 +36,9 @@ export class StorageService {
     this.publicUrl = config.get<string>('STORAGE_PUBLIC_URL')!;
   }
 
-  async uploadImage(opts: UploadImageOptions): Promise<{ url: string; key: string }> {
+  async uploadImage(
+    opts: UploadImageOptions,
+  ): Promise<{ url: string; key: string }> {
     const { buffer, mimetype, folder, oldKey } = opts;
 
     let meta: sharp.Metadata;
@@ -46,9 +48,11 @@ export class StorageService {
       throw new BadRequestException('File bukan gambar yang valid');
     }
 
-    const allowedFormats = ['jpeg', 'png', 'webp'];
+    const allowedFormats = ['jpeg', 'png', 'webp', 'jpg'];
     if (!allowedFormats.includes(meta.format ?? '')) {
-      throw new BadRequestException('Hanya file JPEG, PNG, atau WebP yang diizinkan');
+      throw new BadRequestException(
+        'Hanya file JPEG, JPG, PNG, atau WebP yang diizinkan',
+      );
     }
 
     const processed = await this.processImage(buffer, folder);
@@ -83,11 +87,20 @@ export class StorageService {
     return url.slice(prefix.length);
   }
 
-  private async processImage(buffer: Buffer, folder: ImageFolder): Promise<Buffer> {
+  private async processImage(
+    buffer: Buffer,
+    folder: ImageFolder,
+  ): Promise<Buffer> {
     const base = sharp(buffer);
     if (folder === 'banners') {
-      return base.resize(1200, 630, { fit: 'cover' }).webp({ quality: 85 }).toBuffer();
+      return base
+        .resize(1200, 630, { fit: 'cover' })
+        .webp({ quality: 85 })
+        .toBuffer();
     }
-    return base.resize(400, 400, { fit: 'cover' }).webp({ quality: 90 }).toBuffer();
+    return base
+      .resize(400, 400, { fit: 'cover' })
+      .webp({ quality: 90 })
+      .toBuffer();
   }
 }
