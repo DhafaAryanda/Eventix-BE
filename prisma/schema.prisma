@@ -15,13 +15,14 @@ datasource db {
 }
 
 model User {
-  id       String  @id @default(uuid())
-  email    String  @unique
-  password String
-  name     String
-  phoneNo  String? @unique
-  city     String?
-  role     Role    @default(USER)
+  id        String  @id @default(uuid())
+  email     String  @unique
+  password  String
+  name      String
+  phoneNo   String? @unique
+  city      String?
+  avatarUrl String?
+  role      Role    @default(USER)
 
   // Email verification
   isEmailVerified    Boolean   @default(false)

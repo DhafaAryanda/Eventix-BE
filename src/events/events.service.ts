@@ -14,6 +14,7 @@ import { EventSortBy, QueryEventDto } from './dto/query-event.dto';
 import { EventStatus, Role } from '@prisma/client';
 import { EventListItem } from './types/event-with-types.type';
 import { TicketCache } from 'src/ticket/ticket.cache';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class EventsService {
@@ -23,6 +24,7 @@ export class EventsService {
     private prisma: PrismaService,
     private cache: EventsCache,
     private ticketCache: TicketCache,
+    private storage: StorageService,
   ) {}
 
   // ===========================
@@ -544,6 +546,67 @@ export class EventsService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  // ===========================
+  // UPLOAD BANNER (ADMIN / ORGANIZER)
+  // ===========================
+  async uploadBanner(
+    eventId: string,
+    buffer: Buffer,
+    mimetype: string,
+    userId: string,
+    userRole: Role,
+  ) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    const oldKey = this.storage.extractKeyFromUrl(event.bannerUrl);
+    const { url } = await this.storage.uploadImage({
+      buffer,
+      mimetype,
+      folder: 'banners',
+      oldKey,
+    });
+
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { bannerUrl: url },
+    });
+
+    await Promise.all([
+      this.cache.invalidateEventDetail(eventId),
+      this.cache.invalidateAllEventLists(),
+    ]);
+
+    return { message: 'Banner berhasil diupload', bannerUrl: url };
+  }
+
+  // ===========================
+  // DELETE BANNER (ADMIN / ORGANIZER)
+  // ===========================
+  async deleteBanner(eventId: string, userId: string, userRole: Role) {
+    const event = await this.findEventOrThrow(eventId);
+    this.checkEventOwnership(event, userId, userRole);
+
+    if (!event.bannerUrl) {
+      throw new BadRequestException('Event tidak memiliki banner');
+    }
+
+    const key = this.storage.extractKeyFromUrl(event.bannerUrl);
+    if (key) await this.storage.deleteImage(key);
+
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { bannerUrl: null },
+    });
+
+    await Promise.all([
+      this.cache.invalidateEventDetail(eventId),
+      this.cache.invalidateAllEventLists(),
+    ]);
+
+    return { message: 'Banner berhasil dihapus' };
   }
 
   // ===========================

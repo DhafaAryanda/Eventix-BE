@@ -7,11 +7,14 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
+import { FastifyRequest } from 'fastify';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -125,5 +128,35 @@ export class EventsController {
     @CurrentUser('role') userRole: Role,
   ) {
     return this.eventsService.deleteEvent(id, userRole);
+  }
+
+  // POST /api/events/:id/banner
+  @Post(':id/banner')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.ORGANIZER)
+  @HttpCode(HttpStatus.OK)
+  async uploadBanner(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: Role,
+    @Req() req: FastifyRequest,
+  ) {
+    const file = await req.file();
+    if (!file) throw new BadRequestException('File tidak ditemukan');
+    const buffer = await file.toBuffer();
+    return this.eventsService.uploadBanner(id, buffer, file.mimetype, userId, userRole);
+  }
+
+  // DELETE /api/events/:id/banner
+  @Delete(':id/banner')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.ORGANIZER)
+  @HttpCode(HttpStatus.OK)
+  deleteBanner(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: Role,
+  ) {
+    return this.eventsService.deleteBanner(id, userId, userRole);
   }
 }

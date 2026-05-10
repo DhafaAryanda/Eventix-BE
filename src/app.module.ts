@@ -14,6 +14,8 @@ import { QueueModule } from './queue/queue.module';
 import { TicketModule } from './ticket/ticket.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
+import { StorageModule } from './storage/storage.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -87,6 +89,7 @@ import { PaymentModule } from './payment/payment.module';
     // Prisma (database)
     PrismaModule,
 
+    StorageModule,
     AuthModule,
     MailModule,
     EventsModule,
@@ -94,6 +97,7 @@ import { PaymentModule } from './payment/payment.module';
     TicketModule,
     OrderModule,
     PaymentModule,
+    UsersModule,
 
     // Feature modules (tambahkan seiring perkembangan)
     // AuthModule,

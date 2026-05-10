@@ -64,6 +64,28 @@ services:
     networks:
       - internal-net
 
+  # MinIO untuk DEVELOPMENT LOKAL saja — sengaja dinonaktifkan.
+  #
+  # Di VPS, MinIO berjalan sebagai stack bersama di /home/infrastructure dan
+  # sudah mem-publish port 9000/9001. Mengaktifkan service ini di sana membuat
+  # `docker compose up` gagal karena port bentrok. Service `app` sudah
+  # tergabung ke network eksternal `infrastructure` untuk menjangkaunya.
+  #
+  # Untuk memakainya di lokal: uncomment blok ini DAN tambahkan
+  # `minio_data:` di bawah `volumes:`.
+  #
+  # minio:
+  #   image: minio/minio:latest
+  #   command: server /data --console-address ":9001"
+  #   ports:
+  #     - '9000:9000'
+  #     - '9001:9001'
+  #   environment:
+  #     MINIO_ROOT_USER: admindhafa
+  #     MINIO_ROOT_PASSWORD: alamak123
+  #   volumes:
+  #     - minio_data:/data
+
 volumes:
   postgres_data:
   redis_data:

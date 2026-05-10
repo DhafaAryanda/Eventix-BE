@@ -8,6 +8,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import fastifyCors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { PrismaExceptionFilter } from './prisma/prisma-exception.filter';
 
 async function bootstrap() {
@@ -46,6 +47,10 @@ async function bootstrap() {
     ],
     exposedHeaders: ['Authorization'],
     maxAge: 86400, // Cache preflight request selama 24 jam
+  });
+
+  await app.register(multipart, {
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   });
 
   // Prefix semua route dengan /api
