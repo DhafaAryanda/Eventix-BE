@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   app:
-    image: ghcr.io/dhafaaryanda/eventix-be:latest
-    build: .
+    image: ${APP_IMAGE:-ghcr.io/dhafaaryanda/eventix-be:latest}
     container_name: eventix-be
     expose:
       - '4000'
@@ -14,10 +11,25 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      # App tidak punya route /health; cukup pastikan HTTP server menjawab.
+      # Respons apa pun (termasuk 404) berarti proses sudah listening.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:4000/api',r=>process.exit(0)).on('error',()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
     networks:
       - shared-net
       - internal-net
+      - infrastructure
 
   postgres:
     image: postgres:16-alpine
@@ -61,3 +73,6 @@ networks:
     external: true
   internal-net:
     driver: bridge
+  infrastructure:
+    external: true
+    name: infrastructure

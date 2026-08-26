@@ -3,7 +3,8 @@ name: Deploy Eventix BE
 on:
   push:
     branches:
-      - dev
+      - main
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -17,6 +18,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout kode
@@ -35,8 +39,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=sha-
+            type=sha,prefix=sha-,format=long
             type=raw,value=latest
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build dan push Docker image
         uses: docker/build-push-action@v5
@@ -44,6 +51,9 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy ke VPS
@@ -53,22 +63,51 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          # Dilewatkan sebagai environment variable, bukan diinterpolasi ke
+          # dalam teks perintah, supaya token tidak bocor ke process list VPS.
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          APP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          envs: GHCR_TOKEN,GHCR_USER,APP_IMAGE
+          script_stop: true
           script: |
+            set -euo pipefail
             cd /home/dhafa/Eventix-BE
 
-            echo ${{ secrets.GHCR_TOKEN }} | \
-              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Image di-pin ke commit SHA supaya deploy deterministik dan
+            # rollback cukup dengan menjalankan ulang workflow lama.
+            APP_IMAGE=$(echo "$APP_IMAGE" | tr '[:upper:]' '[:lower:]')
+            export APP_IMAGE
+            echo "→ Deploy image: $APP_IMAGE"
 
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            echo "→ Pull image"
             docker compose pull app
-            docker compose up -d --no-deps app
+
+            echo "→ Start seluruh stack (app + postgres + redis)"
+            docker compose up -d --remove-orphans
+
+            echo "→ Tunggu app healthy"
+            for i in $(seq 1 30); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' eventix-be 2>/dev/null || echo starting)
+              if [ "$status" = "healthy" ]; then break; fi
+              if [ "$i" = "30" ]; then
+                echo "App tidak healthy setelah 150 detik. Log terakhir:"
+                docker compose logs --tail 50 app
+                exit 1
+              fi
+              sleep 5
+            done
 
             echo "→ Jalankan migrasi Prisma"
             docker compose exec -T app npx prisma migrate deploy
 
             docker image prune -f
-            echo "Deploy selesai!"
+            echo "✓ Deploy selesai"
