@@ -31,7 +31,10 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          # GITHUB_TOKEN bawaan, bukan PAT: job ini sudah punya
+          # `permissions: packages: write` di atas, jadi tidak ada secret yang
+          # perlu dibuat maupun dirotasi. Token ini hanya berlaku selama run.
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata untuk Docker
         id: meta
@@ -60,13 +63,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
 
+    permissions:
+      contents: read
+      packages: read
+
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         env:
           # Dilewatkan sebagai environment variable, bukan diinterpolasi ke
           # dalam teks perintah, supaya token tidak bocor ke process list VPS.
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          # GITHUB_TOKEN cukup untuk `docker pull` (packages: read di atas) dan
+          # otomatis kedaluwarsa begitu job selesai.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
           APP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
         with:
