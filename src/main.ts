@@ -53,8 +53,10 @@ async function bootstrap() {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   });
 
-  // Prefix semua route dengan /api
-  app.setGlobalPrefix('api');
+  // Prefix semua route dengan /api.
+  // `/metrics` dikecualikan: itu konvensi baku Prometheus dan bukan bagian
+  // dari API publik aplikasi. Endpoint-nya diblokir dari internet di nginx.
+  app.setGlobalPrefix('api', { exclude: ['metrics'] });
 
   // Global filter untuk Prisma errors
   app.useGlobalFilters(new PrismaExceptionFilter());

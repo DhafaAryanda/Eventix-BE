@@ -12,14 +12,16 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # App tidak punya route /health; cukup pastikan HTTP server menjawab.
-      # Respons apa pun (termasuk 404) berarti proses sudah listening.
+      # Memakai /metrics (endpoint Prometheus, di luar prefix /api).
+      # Lebih kuat daripada versi sebelumnya yang menembak /api dan menganggap
+      # 404 sebagai "sehat": di sini status HARUS 200, jadi container baru
+      # dinyatakan sehat kalau Nest benar-benar selesai bootstrap.
       test:
         [
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://127.0.0.1:4000/api',r=>process.exit(0)).on('error',()=>process.exit(1))",
+          "require('http').get('http://127.0.0.1:4000/metrics',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s

@@ -16,6 +16,7 @@ import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -98,6 +99,9 @@ import { UsersModule } from './users/users.module';
     OrderModule,
     PaymentModule,
     UsersModule,
+
+    // Metrik Prometheus (/metrics) + interceptor durasi request
+    ObservabilityModule,
 
     // Feature modules (tambahkan seiring perkembangan)
     // AuthModule,
