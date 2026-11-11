@@ -1,5 +1,14 @@
 node_modules
 dist
+coverage
 .git
+.github
+.claude
+deploy
+compose.yaml
+*.tsbuildinfo
 .env
+.env.*
+!.env.example
 README.md
+AGENTS.md

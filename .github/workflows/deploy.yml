@@ -1,42 +1,48 @@
-name: Deploy Eventix BE
+name: Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
+
+# Satu deploy dalam satu waktu; deploy berikutnya antre (tidak membatalkan).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  STACK: eventix-be # -> ~/stacks/eventix-be di VPS
 
 jobs:
-  build:
-    name: Build & Push Docker Image
-    runs-on: ubuntu-latest
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
 
+  build:
+    name: Build & push image
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
 
-    outputs:
-      image: ${{ steps.meta.outputs.tags }}
-
     steps:
-      - name: Checkout kode
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Login ke GitHub Container Registry
+      - name: Login ke GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          # GITHUB_TOKEN bawaan, bukan PAT: job ini sudah punya
-          # `permissions: packages: write` di atas, jadi tidak ada secret yang
-          # perlu dibuat maupun dirotasi. Token ini hanya berlaku selama run.
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata untuk Docker
+      - name: Metadata image
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -45,11 +51,10 @@ jobs:
             type=sha,prefix=sha-,format=long
             type=raw,value=latest
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Build dan push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build & push
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -60,63 +65,79 @@ jobs:
 
   deploy:
     name: Deploy ke VPS
-    runs-on: ubuntu-latest
     needs: build
-
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Secrets VPS_HOST, VPS_PORT, VPS_USER, VPS_SSH_KEY ada di
+    # Settings > Environments > production.
+    environment: production
     permissions:
       contents: read
       packages: read
 
     steps:
-      - name: Deploy via SSH
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: deploy
+
+      # deploy/compose.yaml -> ~/stacks/eventix-be/compose.yaml
+      - name: Salin compose.yaml ke VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: deploy/compose.yaml
+          target: /home/${{ secrets.VPS_USER }}/stacks/${{ env.STACK }}
+          strip_components: 1
+          overwrite: true
+
+      - name: Pull image, migrasi, restart
         uses: appleboy/ssh-action@v1
         env:
-          # Dilewatkan sebagai environment variable, bukan diinterpolasi ke
-          # dalam teks perintah, supaya token tidak bocor ke process list VPS.
-          # GITHUB_TOKEN cukup untuk `docker pull` (packages: read di atas) dan
-          # otomatis kedaluwarsa begitu job selesai.
+          # Dikirim sebagai env var (bukan diinterpolasi ke script) supaya token
+          # tidak muncul di process list VPS. GITHUB_TOKEN kedaluwarsa begitu job
+          # selesai.
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
           APP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          STACK: ${{ env.STACK }}
         with:
           host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          envs: GHCR_TOKEN,GHCR_USER,APP_IMAGE
-          script_stop: true
+          envs: GHCR_TOKEN,GHCR_USER,APP_IMAGE,STACK
           script: |
             set -euo pipefail
-            cd /home/dhafa/Eventix-BE
+            cd "$HOME/stacks/$STACK"
+            test -f .env || { echo "✗ $PWD/.env belum dibuat (lihat .env.example)"; exit 1; }
 
-            # Image di-pin ke commit SHA supaya deploy deterministik dan
-            # rollback cukup dengan menjalankan ulang workflow lama.
+            # Image di-pin ke commit SHA: deploy deterministik, rollback cukup
+            # dengan re-run workflow commit lama.
             APP_IMAGE=$(echo "$APP_IMAGE" | tr '[:upper:]' '[:lower:]')
             export APP_IMAGE
-            echo "→ Deploy image: $APP_IMAGE"
+            echo "→ Image: $APP_IMAGE"
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
 
             echo "→ Pull image"
             docker compose pull app
 
-            echo "→ Start seluruh stack (app + postgres + redis)"
-            docker compose up -d --remove-orphans
+            echo "→ Pastikan Postgres & Redis sehat"
+            docker compose up -d --wait postgres redis
 
-            echo "→ Tunggu app healthy"
-            for i in $(seq 1 30); do
-              status=$(docker inspect -f '{{.State.Health.Status}}' eventix-be 2>/dev/null || echo starting)
-              if [ "$status" = "healthy" ]; then break; fi
-              if [ "$i" = "30" ]; then
-                echo "App tidak healthy setelah 150 detik. Log terakhir:"
-                docker compose logs --tail 50 app
-                exit 1
-              fi
-              sleep 5
-            done
+            echo "→ Migrasi Prisma (sebelum app diganti)"
+            docker compose run --rm --no-deps app npx prisma migrate deploy
 
-            echo "→ Jalankan migrasi Prisma"
-            docker compose exec -T app npx prisma migrate deploy
+            echo "→ Restart app & tunggu healthy"
+            if ! docker compose up -d --remove-orphans --wait --wait-timeout 180; then
+              echo "✗ App tidak healthy. Log terakhir:"
+              docker compose logs --tail 80 app
+              exit 1
+            fi
 
             docker image prune -f
             echo "✓ Deploy selesai"
