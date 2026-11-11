@@ -1,0 +1,95 @@
+name: eventix-be
+
+# Compose PRODUCTION.
+# Disalin otomatis oleh workflow deploy ke ~/stacks/eventix-be/compose.yaml di
+# VPS — jangan edit langsung di VPS, ubah file ini lewat PR.
+#
+# Di VPS, folder stack berisi file `.env` (chmod 600) yang dipakai untuk:
+#   1. env_file container app (JWT, mail, Xendit, storage R2, dll.)
+#   2. interpolasi ${...} di file ini (password Postgres & Redis)
+# Template: .env.example di root repo.
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/dhafaaryanda/eventix-be:latest}
+    container_name: eventix-be
+    restart: unless-stopped
+    expose:
+      - '4000' # tidak di-publish; Caddy (stack proxy) meneruskan :8081 -> sini
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Dirakit dari password di .env supaya tidak ada kredensial ganda.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eventix}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # /metrics (endpoint Prometheus, di luar prefix /api) harus 200 —
+      # artinya Nest benar-benar selesai bootstrap. Endpoint ini diblok Caddy
+      # dari publik.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:4000/metrics',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - proxy
+      - internal
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: eventix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di .env}
+      POSTGRES_DB: ${POSTGRES_DB:-eventix}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: eventix-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD wajib diisi di .env}
+    # BullMQ mensyaratkan maxmemory-policy noeviction.
+    command: >
+      sh -c 'exec redis-server --requirepass "$$REDIS_PASSWORD"
+      --appendonly yes --maxmemory 128mb --maxmemory-policy noeviction'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  proxy:
+    external: true # dibuat oleh stack proxy (~/stacks/proxy)
+  internal:

@@ -35,6 +35,9 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # dotenv environment variable files
 .env
 .env.prod

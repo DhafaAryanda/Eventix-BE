@@ -1,0 +1,42 @@
+name: eventix-be-dev
+
+# Dependency untuk DEVELOPMENT LOKAL saja (Postgres + Redis).
+#   docker compose up -d
+#   cp .env.example .env   # nilai default sudah cocok dengan service di bawah
+#   npx prisma migrate dev && npm run start:dev
+#
+# Compose production ada di deploy/compose.yaml.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eventix
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d eventix']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis --maxmemory-policy noeviction
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'redis', '--no-auth-warning', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
