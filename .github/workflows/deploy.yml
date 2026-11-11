@@ -125,6 +125,9 @@ jobs:
 
             echo "→ Pull image"
             docker compose pull app
+            # Tandai juga sebagai :latest LOKAL, supaya `docker compose up` manual
+            # (mis. setelah mengubah .env) memakai image yang sama tanpa login GHCR.
+            docker tag "$APP_IMAGE" "${APP_IMAGE%:*}:latest"
 
             echo "→ Pastikan Postgres & Redis sehat"
             docker compose up -d --wait postgres redis
@@ -139,5 +142,10 @@ jobs:
               exit 1
             fi
 
+            # Hapus image versi lama repo ini (tag sha-* tidak tersentuh `prune`).
+            # Rollback tetap bisa: re-run workflow commit lama akan pull ulang.
+            docker images --format '{{.Repository}}:{{.Tag}}' \
+              | grep "^${APP_IMAGE%:*}:sha-" | grep -vxF "$APP_IMAGE" \
+              | xargs -r docker rmi || true
             docker image prune -f
             echo "✓ Deploy selesai"
