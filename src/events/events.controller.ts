@@ -7,14 +7,14 @@ import {
   Body,
   Param,
   Query,
-  Req,
+  // Req, // [NONAKTIF-R2] dipakai upload banner
   UseGuards,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
-  BadRequestException,
+  // BadRequestException, // [NONAKTIF-R2] dipakai upload banner
 } from '@nestjs/common';
-import { FastifyRequest } from 'fastify';
+// import { FastifyRequest } from 'fastify'; // [NONAKTIF-R2]
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -168,6 +168,7 @@ export class EventsController {
     return this.eventsService.deleteEvent(id, userRole);
   }
 
+  /* [NONAKTIF-R2] mulai — upload/hapus banner butuh object storage
   // POST /api/events/:id/banner
   @Post(':id/banner')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -197,4 +198,5 @@ export class EventsController {
   ) {
     return this.eventsService.deleteBanner(id, userId, userRole);
   }
+  [NONAKTIF-R2] selesai */
 }

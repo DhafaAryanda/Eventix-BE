@@ -8,13 +8,13 @@ import { ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { MailModule } from './mail/mail.module';
+// import { MailModule } from './mail/mail.module'; // [NONAKTIF-SMTP]
 import { EventsModule } from './events/events.module';
 import { QueueModule } from './queue/queue.module';
 import { TicketModule } from './ticket/ticket.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
-import { StorageModule } from './storage/storage.module';
+// import { StorageModule } from './storage/storage.module'; // [NONAKTIF-R2]
 import { UsersModule } from './users/users.module';
 import { ObservabilityModule } from './observability/observability.module';
 
@@ -90,9 +90,9 @@ import { ObservabilityModule } from './observability/observability.module';
     // Prisma (database)
     PrismaModule,
 
-    StorageModule,
+    // StorageModule, // [NONAKTIF-R2] object storage (Cloudflare R2) ditunda
     AuthModule,
-    MailModule,
+    // MailModule, // [NONAKTIF-SMTP] email ditunda
     EventsModule,
     QueueModule,
     TicketModule,

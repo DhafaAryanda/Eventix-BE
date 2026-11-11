@@ -1,15 +1,16 @@
 import {
   Controller,
   Get,
-  Post,
-  Delete,
-  Req,
+  // [NONAKTIF-R2] dipakai route upload/hapus avatar:
+  // Post,
+  // Delete,
+  // Req,
   UseGuards,
-  HttpCode,
-  HttpStatus,
-  BadRequestException,
+  // HttpCode,
+  // HttpStatus,
+  // BadRequestException,
 } from '@nestjs/common';
-import { FastifyRequest } from 'fastify';
+// import { FastifyRequest } from 'fastify'; // [NONAKTIF-R2]
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -25,6 +26,7 @@ export class UsersController {
     return this.usersService.getProfile(userId);
   }
 
+  /* [NONAKTIF-R2] mulai — upload/hapus avatar butuh object storage
   // POST /api/users/me/avatar
   @Post('me/avatar')
   @HttpCode(HttpStatus.OK)
@@ -44,4 +46,5 @@ export class UsersController {
   deleteAvatar(@CurrentUser('id') userId: string) {
     return this.usersService.deleteAvatar(userId);
   }
+  [NONAKTIF-R2] selesai */
 }

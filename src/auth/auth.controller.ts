@@ -3,7 +3,7 @@ import {
   Post,
   Get,
   Body,
-  Query,
+  // Query, // [NONAKTIF-SMTP] dipakai verify-email
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -12,8 +12,8 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+// import { ForgotPasswordDto } from './dto/forgot-password.dto'; // [NONAKTIF-SMTP]
+// import { ResetPasswordDto } from './dto/reset-password.dto'; // [NONAKTIF-SMTP]
 import { JwtAuthGuard } from './guards/jwt.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
@@ -30,6 +30,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  /* [NONAKTIF-SMTP] mulai — route verifikasi email butuh SMTP
   // GET /api/auth/verify-email?token=xxx
   @Get('verify-email')
   verifyEmail(@Query('token') token: string) {
@@ -42,6 +43,7 @@ export class AuthController {
   resendVerification(@Body('email') email: string) {
     return this.authService.resendVerificationEmail(email);
   }
+  [NONAKTIF-SMTP] selesai */
 
   // POST /api/auth/login
   @Post('login')
@@ -69,6 +71,7 @@ export class AuthController {
     return this.authService.logout(userId);
   }
 
+  /* [NONAKTIF-SMTP] mulai — route lupa/reset password butuh SMTP
   // POST /api/auth/forgot-password
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
@@ -82,6 +85,7 @@ export class AuthController {
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }
+  [NONAKTIF-SMTP] selesai */
 
   // GET /api/auth/me — contoh route protected
   @Get('me')
