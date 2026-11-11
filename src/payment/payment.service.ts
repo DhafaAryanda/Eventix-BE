@@ -12,7 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { XenditClient } from './xendit/xendit.client';
 import { XenditInvoiceWebhookPayload } from './xendit/xendit.types';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
-import { MailerService } from '@nestjs-modules/mailer';
+// import { MailerService } from '@nestjs-modules/mailer'; // [NONAKTIF-SMTP]
 
 @Injectable()
 export class PaymentService {
@@ -22,7 +22,7 @@ export class PaymentService {
     private prisma: PrismaService,
     private xendit: XenditClient,
     private config: ConfigService,
-    private mailer: MailerService,
+    // private mailer: MailerService, // [NONAKTIF-SMTP] disediakan MailModule
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -279,10 +279,12 @@ export class PaymentService {
       paidAt: new Date(),
     });
 
+    /* [NONAKTIF-SMTP] mulai
     // Kirim email konfirmasi — non-blocking
     this.sendConfirmationEmail(payment.order).catch((err) =>
       this.logger.error(`Failed to send confirmation email: ${err.message}`),
     );
+    [NONAKTIF-SMTP] selesai */
   }
 
   // ===========================
@@ -376,6 +378,7 @@ export class PaymentService {
     };
   }
 
+  /* [NONAKTIF-SMTP] mulai — email konfirmasi tiket butuh SMTP
   // ===========================
   // SEND CONFIRMATION EMAIL
   // ===========================
@@ -403,4 +406,5 @@ export class PaymentService {
       },
     });
   }
+  [NONAKTIF-SMTP] selesai */
 }

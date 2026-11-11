@@ -4,20 +4,20 @@ import {
   ConflictException,
   UnauthorizedException,
   NotFoundException,
-  BadRequestException,
+  // BadRequestException, // [NONAKTIF-SMTP] dipakai verifyEmail & resetPassword
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
+// import { MailService } from '../mail/mail.service'; // [NONAKTIF-SMTP]
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+// import { ForgotPasswordDto } from './dto/forgot-password.dto'; // [NONAKTIF-SMTP]
+// import { ResetPasswordDto } from './dto/reset-password.dto'; // [NONAKTIF-SMTP]
 import { JwtPayload } from './types/jwt-payload.type';
 import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
+// import * as crypto from 'crypto'; // [NONAKTIF-SMTP] dipakai untuk token verifikasi/reset
 
 @Injectable()
 export class AuthService {
@@ -27,7 +27,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
-    private mail: MailService,
+    // private mail: MailService, // [NONAKTIF-SMTP]
   ) {}
 
   // ===========================
@@ -45,22 +45,31 @@ export class AuthService {
     // Hash password dengan cost factor 12
     const password = await bcrypt.hash(dto.password, 12);
 
+    // [NONAKTIF-SMTP] Tanpa SMTP, email verifikasi tidak bisa dikirim, jadi user
+    // langsung ditandai terverifikasi agar bisa login (login() tetap mengecek).
+    // Mengaktifkan lagi: hapus `isEmailVerified: true`, aktifkan token di bawah,
+    // kembalikan `const user =` pada create(), aktifkan blok kirim email, dan
+    // kembalikan pesan asli.
+    /* [NONAKTIF-SMTP] mulai
     // Generate token verifikasi email
     const emailVerifyToken = crypto.randomBytes(32).toString('hex');
     const emailVerifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 jam
+    [NONAKTIF-SMTP] selesai */
 
-    const user = await this.prisma.user.create({
+    await this.prisma.user.create({
       data: {
         email: dto.email,
         name: dto.name,
         city: dto.city,
         phoneNo: dto.phoneNo,
         password,
-        emailVerifyToken,
-        emailVerifyExpires,
+        isEmailVerified: true, // [NONAKTIF-SMTP]
+        // emailVerifyToken, // [NONAKTIF-SMTP]
+        // emailVerifyExpires, // [NONAKTIF-SMTP]
       },
     });
 
+    /* [NONAKTIF-SMTP] mulai
     const baseUrl = this.config.get<string>('APP_URL');
 
     if (!baseUrl) {
@@ -78,12 +87,15 @@ export class AuthService {
       .catch((err) => {
         this.logger.error('Gagal kirim email verifikasi', err.stack);
       });
+    [NONAKTIF-SMTP] selesai */
 
     return {
-      message: 'Registrasi berhasil. Cek email kamu untuk verifikasi.',
+      // [NONAKTIF-SMTP] pesan asli: 'Registrasi berhasil. Cek email kamu untuk verifikasi.'
+      message: 'Registrasi berhasil. Silakan login.',
     };
   }
 
+  /* [NONAKTIF-SMTP] mulai — verifyEmail & resendVerificationEmail butuh SMTP
   // ===========================
   // VERIFY EMAIL
   // ===========================
@@ -162,6 +174,7 @@ export class AuthService {
         'Jika email terdaftar dan belum diverifikasi, email akan dikirim.',
     };
   }
+  [NONAKTIF-SMTP] selesai */
 
   // ===========================
   // LOGIN
@@ -245,6 +258,7 @@ export class AuthService {
     return { message: 'Logout berhasil' };
   }
 
+  /* [NONAKTIF-SMTP] mulai — forgotPassword & resetPassword butuh SMTP
   // ===========================
   // FORGOT PASSWORD
   // ===========================
@@ -323,6 +337,7 @@ export class AuthService {
 
     return { message: 'Password berhasil direset. Silakan login.' };
   }
+  [NONAKTIF-SMTP] selesai */
 
   // ===========================
   // PRIVATE HELPERS

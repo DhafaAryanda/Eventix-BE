@@ -15,7 +15,7 @@ import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { EventStatus, Role } from '@prisma/client';
 import { EventListItem } from './types/event-with-types.type';
 import { TicketCache } from 'src/ticket/ticket.cache';
-import { StorageService } from '../storage/storage.service';
+// import { StorageService } from '../storage/storage.service'; // [NONAKTIF-R2]
 
 @Injectable()
 export class EventsService {
@@ -25,7 +25,7 @@ export class EventsService {
     private prisma: PrismaService,
     private cache: EventsCache,
     private ticketCache: TicketCache,
-    private storage: StorageService,
+    // private storage: StorageService, // [NONAKTIF-R2]
   ) {}
 
   // ===========================
@@ -684,6 +684,7 @@ export class EventsService {
     };
   }
 
+  /* [NONAKTIF-R2] mulai — upload/hapus banner butuh object storage
   // ===========================
   // UPLOAD BANNER (ADMIN / ORGANIZER)
   // ===========================
@@ -744,6 +745,7 @@ export class EventsService {
 
     return { message: 'Banner berhasil dihapus' };
   }
+  [NONAKTIF-R2] selesai */
 
   // ===========================
   // PRIVATE HELPERS

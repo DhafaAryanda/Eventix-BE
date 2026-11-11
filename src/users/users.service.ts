@@ -1,16 +1,16 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
+  // BadRequestException, // [NONAKTIF-R2] dipakai deleteAvatar
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StorageService } from '../storage/storage.service';
+// import { StorageService } from '../storage/storage.service'; // [NONAKTIF-R2]
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private storage: StorageService,
+    // private storage: StorageService, // [NONAKTIF-R2]
   ) {}
 
   async getProfile(userId: string) {
@@ -32,6 +32,7 @@ export class UsersService {
     return user;
   }
 
+  /* [NONAKTIF-R2] mulai — upload/hapus avatar butuh object storage
   async uploadAvatar(userId: string, buffer: Buffer, mimetype: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -75,4 +76,5 @@ export class UsersService {
 
     return { message: 'Avatar berhasil dihapus' };
   }
+  [NONAKTIF-R2] selesai */
 }
